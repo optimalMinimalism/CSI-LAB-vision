@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "csi-framegrabber"
+version = "0.1.0"
+description = "Standalone Raspberry Pi/USB camera acquisition and frame transport"
+requires-python = ">=3.11,<3.13"
+dependencies = ["numpy>=1.24,<3", "opencv-python>=4.6,<5"]
+
+[project.scripts]
+csi-framegrabber = "framegrabber.cli:main"
+
+[tool.setuptools]
+packages = ["framegrabber"]
+package-dir = {framegrabber = "."}
+
+[tool.setuptools.package-data]
+framegrabber = ["native/*.cpp", "native/CMakeLists.txt", "camera.env.example", "csi-framegrabber.service"]

@@ -1,0 +1,12 @@
+.venv/
+.venv312/
+__pycache__/
+*.egg-info/
+data/
+models/
+.env
+*.pt
+CSI-LAB-camera/native/build/
+.ruff_cache/
+
+CSI-LAB-camera/build/

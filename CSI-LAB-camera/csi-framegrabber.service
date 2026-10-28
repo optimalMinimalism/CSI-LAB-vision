@@ -1,0 +1,21 @@
+[Unit]
+Description=Standalone CSI live framegrabber
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=csi-video
+SupplementaryGroups=video
+WorkingDirectory=/opt/CSI-LAB-camera
+EnvironmentFile=/etc/csi-framegrabber.env
+ExecStart=/opt/CSI-LAB-camera/.venv/bin/csi-framegrabber
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

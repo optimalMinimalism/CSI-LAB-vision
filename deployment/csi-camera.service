@@ -1,0 +1,21 @@
+[Unit]
+Description=CSI video camera acquisition
+After=network-online.target chrony.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=csi-video
+SupplementaryGroups=video
+WorkingDirectory=/opt/CSI-LAB-vision
+ExecStart=/opt/CSI-LAB-vision/.venv/bin/python -m backend.cli --env /etc/csi-video/camera.env camera
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+# OpenCV needs access to the USB video device; do not enable PrivateDevices.
+
+[Install]
+WantedBy=multi-user.target
