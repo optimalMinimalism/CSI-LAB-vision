@@ -117,6 +117,18 @@ class CameraService:
                             self.capture_uncertainty_ns,
                         )
                         metadata["monotonic_ns"] = monotonic
+                        sensor = getattr(source, 'capture_metadata', {}).get('SensorTimestamp')
+                        if type(sensor) is int and hasattr(time, 'CLOCK_BOOTTIME'):
+                            before = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
+                            sensor_wall = time.time_ns()
+                            after = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
+                            if 0 <= after-sensor <= 5_000_000_000:
+                                metadata.update(sensor_timestamp_ns=sensor, sensor_clock='CLOCK_BOOTTIME',
+                                    sensor_mapping_bracket_ns=after-before, read_completed_timestamp_ns=acquired,
+                                    timestamp_ns=sensor_wall+sensor-(before+after)//2,
+                                    monotonic_ns=monotonic-((before+after)//2-sensor),
+                                    timestamp_source='picamera2-sensor-timestamp')
+
                         if getattr(source, "synthetic", False):
                             metadata.update(
                                 timestamp_source="synthetic-camera-interface",

@@ -45,7 +45,12 @@ class PiCapture:
         return True  # Resolution/FPS were configured when the camera was created.
 
     def read(self):
-        return True, self.camera.capture_array("main")
+        request = self.camera.capture_request()
+        try:
+            self.capture_metadata = request.get_metadata()
+            return True, request.make_array("main")
+        finally:
+            request.release()
 
     def release(self):
         self.camera.stop()
@@ -91,10 +96,21 @@ class Acquisition:
                     wall, mono = time.time_ns(), time.monotonic_ns()
                     if not ok:
                         raise OSError("Camera read failed")
+                    evidence = {}
+                    sensor = getattr(camera, 'capture_metadata', {}).get('SensorTimestamp')
+                    if type(sensor) is int and hasattr(time, 'CLOCK_BOOTTIME'):
+                        before = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
+                        sensor_wall = time.time_ns()
+                        after = time.clock_gettime_ns(time.CLOCK_BOOTTIME)
+                        if 0 <= after-sensor <= 5_000_000_000:
+                            evidence = {'sensor_timestamp_ns': sensor, 'sensor_clock': 'CLOCK_BOOTTIME',
+                                'sensor_mapping_bracket_ns': after-before, 'read_completed_timestamp_ns': wall}
+                            wall = sensor_wall + sensor-(before+after)//2
+                            mono -= (before+after)//2-sensor
                     self.latest.put(Frame(image, dict(
                         frame_id=sequence, timestamp_ns=wall, monotonic_ns=mono,
                         width=image.shape[1], height=image.shape[0], source_id=str(self.source),
-                        timestamp_source=f"{self.backend}-read-completion")))
+                        timestamp_source="picamera2-sensor-timestamp" if evidence else f"{self.backend}-read-completion", **evidence)))
                     sequence += 1
                 except (OSError, RuntimeError, cv2.error) as exc:
                     logging.warning("Camera reconnect: %s", exc)
