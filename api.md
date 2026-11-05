@@ -135,6 +135,20 @@ Each archive has an `experiment-{id}/` directory containing original `frames/*.j
 
 MP4 uses variable frame timing from aligned timestamps and 100 ms final-frame padding. Original JPEGs and metadata are the authoritative recording.
 
-## Errors
+## Separate floor-distance screen [experimental]
+
+Open `/distance` and authenticate with the existing token. Models load only after an enabled session receives a frame. The distance worker uses local pose and object-detection weights; it does not run posture or fall classification. It has an independent five-second lease and runs in a separate low-priority process at at most one job per second. Main preview/stream, recording and analysis/export pause the experiment and terminate its worker. Primary preview/analysis behavior continues unchanged. Status includes `experimental: true` and `paused_by`; experimental JPEGs are labelled `[experimental]`.
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| GET | `/api/experimental/distance` | Enabled/status/error, saved calibration, latest fresh result |
+| POST | `/api/experimental/distance` | `{"enabled":true}` renews a five-second lease; `false` stops publication |
+| GET | `/api/experimental/distance/preview` | Annotated JPEG; matching frame/result summary in `X-Frame-Metadata`; 204 if unavailable |
+| GET | `/api/experimental/distance/calibration` | Saved floor calibration or null |
+| POST | `/api/experimental/distance/calibration` | Save a measured floor rectangle, or `{"clear":true}` to remove calibration |
+
+The calibration schema and restrictions are documented in [distance.md](docs/distance.md). The full result contains `floor_distances`, original frame metadata, optional `rangefinder` telemetry, and inference timing. `floor_distances.distances` contains approximate floor-anchor separations in metres only when calibration matches the frame. Foot/object indices belong to a single frame; they are not persistent identities. No frame is saved by using this screen. Inter-object geometry does not use the single-beam LiDAR value.
+
+## Error responses
 
 Errors return `{"error":"message"}`. `400` means invalid input/state or busy analysis/export; `401` means missing/invalid token; `404` means missing route/resource; `500` means internal failure. Backend logs contain internal error details.

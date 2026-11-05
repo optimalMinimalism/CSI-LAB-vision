@@ -45,4 +45,34 @@ Live mode is the CLI default. It sends frames continuously to the standalone det
 
 The optional C++ capture worker lives in `native/` and requires CMake, a C++ compiler, OpenCV development libraries and OpenSSL development libraries. The Python client can run without this worker.
 
+## Optional Benewake distance telemetry
+
+The independent C++ UART reader supports the TF02-Pro's standard 9-byte, centimeter output format, with optional TFmini-S and TF-Luna profiles. It is disabled unless you explicitly configure a device. Camera operation continues if the device or worker is missing, disconnected, or produces invalid measurements.
+
+Build just the distance reader on Linux (including Raspberry Pi OS), without OpenCV development libraries or PySerial:
+
+```bash
+sudo apt install build-essential cmake
+cmake -S native -B native/build -DCSI_BUILD_CAMERA=OFF -DCMAKE_BUILD_TYPE=Release
+cmake --build native/build --target benewakeCapture -j2
+```
+
+From this directory, enable it for dashboard recording:
+
+```bash
+csi-framegrabber --mode recording --server http://COMPUTER-IP:8765 \
+  --benewake-device /dev/serial0 --benewake-model tf02-pro \
+  --benewake-worker "$PWD/native/build/benewakeCapture"
+```
+
+The same options work in `--mode live`. The existing `CSI_VIDEO_TOKEN` requirement still applies. The default `tf02-pro` profile accepts 0.10–40 m, rejects signal strength ≤60 or 65535, and rejects error-distance values such as 4500 cm. Select `tfmini-s` (0.10–12 m) or `tf-luna` (0.20–8 m) explicitly for those models. These are acceptance limits, not guaranteed usable range for every surface or lighting condition. The UART packet cannot identify the model or distinguish centimeter output from the sensor's optional millimeter mode: the sensor must be configured for centimeters.
+
+`CSI_BENEWAKE_DEVICE`, `CSI_BENEWAKE_MODEL`, `CSI_BENEWAKE_BAUD`, and `CSI_BENEWAKE_WORKER` provide environment defaults. These also work with the existing `python -m backend.cli --env ... camera` deployment. For systemd, place the executable somewhere readable outside your home directory, such as `/usr/local/bin/benewakeCapture`, and use an absolute worker path. The service templates include the `dialout` group; verify the group that owns your serial device on your OS.
+
+Frame metadata, recorded-frame API responses, and live inference results expose a `rangefinder` object. Its `distance_m` is populated only in the `available` state. Other states include `connected` (awaiting a reading), `disconnected`, `invalid`, `stale`, and `unmatched`. When disabled, the field is omitted entirely. The native reader can also run directly as `native/build/benewakeCapture /dev/serial0 115200 tf02-pro`; stdout contains JSONL telemetry.
+
+The reader validates checksums, rejects weak/saturated returns, handles fragmented packets, and reconnects once per second. Sensor history is limited to 64 samples. `--benewake-tolerance-ms` defaults to 100 ms and `--benewake-stale-ms` to 250 ms. They gate association by **host UART reception time**, which does not establish simultaneous sensor exposures. Unknown measurement timing uncertainty is explicitly `null`.
+
+This change reports single-beam sensor distance alongside images. It does not assign that distance to a detected person, change the model, or estimate a 3D position. [Protocol, timing, hardware setup, and validation details](../docs/benewake.md).
+
 [Wire format and camera API](../docs/wiki/CSI-LAB-camera.md) · [Backend API](../api.md)

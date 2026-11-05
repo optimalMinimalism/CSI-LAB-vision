@@ -2,7 +2,7 @@
 
 CSI-LAB-vision supplies timestamped camera frames to CSI-LAB through an HTTP API. It captures and stores original JPEGs, runs visual inference, and provides preview and MP4 inspection tools.
 
-Radio acquisition, radio data storage, signal processing and association with camera frames belong to CSI-LAB. This application processes camera data only.
+Radio acquisition, radio data storage, signal processing and association with camera frames belong to CSI-LAB. This application processes camera data and optional Benewake distance telemetry.
 
 ## Components
 
@@ -56,6 +56,8 @@ Frames are available during capture and after stop. The backend stores original 
 `timestamp_ns` is camera Unix time at read completion. `aligned_timestamp_ns` maps it to the backend computer's Unix clock using HTTP clock measurements. Neither is a measured sensor-exposure timestamp. Unknown capture uncertainty remains unknown. Browser clients should request `X-Timestamp-Format: string` and use `BigInt` for nanoseconds.
 
 ## Visual analysis and inspection
+
+The separate **Distanze [experimental]** screen at `/distance` runs an on-demand pose/object pipeline for a fixed camera and a flat floor. Mark a measured floor rectangle before enabling metric estimates between visible ankle positions and object bases. Its separate low-priority process pauses during main preview, recording or analysis/export; it never replaces main live analysis. It displays TF02-Pro beam telemetry separately. [Distance-screen setup, calibration, API and limitations](docs/distance.md).
 
 One YOLO pose extraction feeds presence detection, geometric posture estimates and 17-joint COCO skeletons. Live inference keeps only the latest pending frame and latest result. It does not provide a persistent annotation for every captured frame or track identities across frames.
 

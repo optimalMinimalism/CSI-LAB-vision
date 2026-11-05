@@ -25,7 +25,7 @@ details{margin-top:15px;padding-top:12px;border-top:1px solid var(--line)}summar
 <header class="masthead"><a class="brand" href="/">CSI<span>—</span>LAB</a><small>VIDEO</small><button id="logout" class="hidden">Esci</button></header>
 <div id="message" role="status" aria-live="polite">Accedi per visualizzare la camera.</div>
 <form id="login"><h2>Anteprima video</h2><label for="token">Token del servizio</label><input id="token" type="password" autocomplete="current-password" required><button type="submit">Apri la camera</button></form>
-<main id="app" class="hidden"><div class="intro"><h1>Vision</h1></div>
+<main id="app" class="hidden"><div class="intro"><h1>Vision</h1><p class="hint"><a href="/distance">Distanze [experimental] · schermata separata</a></p></div>
 <section>
 <div class="viewer">
 <div class="viewer-head"><span><i id="cameraDot" class="indicator"></i><span id="cameraState">Connessione alla camera…</span></span><div class="preview-modes" role="group" aria-label="Modalità anteprima"><button id="modePresence" type="button" data-mode="presence" aria-pressed="true">Presenza</button><button id="modePosture" type="button" data-mode="posture" aria-pressed="false">Postura</button><button id="modeSkeleton" type="button" data-mode="skeleton" aria-pressed="false">Scheletro</button><button id="fallEnabled" type="button" aria-pressed="false" title="Attiva o disattiva il rilevamento sperimentale delle cadute">Rilevamento cadute (Experimental)</button><button id="modeAll" type="button" data-mode="all" aria-pressed="false">All</button></div><span id="badge">ANTEPRIMA</span></div>

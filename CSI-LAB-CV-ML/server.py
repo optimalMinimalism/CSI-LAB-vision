@@ -182,6 +182,9 @@ class Handler(BaseHTTPRequestHandler):
                 "text/html; charset=utf-8",
             )
             return
+        if method == "GET" and path.path == "/distance":
+            self.send(200, Path(__file__).with_name("distance.html").read_bytes(), "text/html; charset=utf-8")
+            return
         auth = self.headers.get("Authorization", "")
         if not hmac.compare_digest(
             auth.encode(), ("Bearer " + self.server.token).encode()
@@ -192,6 +195,10 @@ class Handler(BaseHTTPRequestHandler):
         parts = path.path.strip("/").split("/")
         if parts[:2] == ["api", "recordings"]:
             parts[1] = "experiments"
+        if parts[:3] == ["api", "experimental", "distance"]:
+            from .distance_api import route
+            route(self, method, parts, service)
+            return
         if method == "GET" and parts == ["api", "clock"]:
             self.send(
                 200,
@@ -226,7 +233,7 @@ class Handler(BaseHTTPRequestHandler):
                 metadata = json.loads(self.headers.get("X-Frame-Metadata", "{}"))
                 payload = self.body(raw=True)
                 image = verify_frame(metadata, payload)
-                if time.monotonic() < service.preview_deadline:
+                if time.monotonic() < service.preview_deadline or service.distance_requested():
                     service.latest_frame(metadata, payload, image)
                 self.send(200, dict(accepted=True))
             elif method == "POST":

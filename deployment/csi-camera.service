@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=csi-video
-SupplementaryGroups=video
+SupplementaryGroups=video dialout
 WorkingDirectory=/opt/CSI-LAB-vision
 ExecStart=/opt/CSI-LAB-vision/.venv/bin/python -m backend.cli --env /etc/csi-video/camera.env camera
 Restart=on-failure

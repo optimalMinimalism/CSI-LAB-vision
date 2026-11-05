@@ -24,3 +24,4 @@ package-dir = {backend = "CSI-LAB-CV-ML", framegrabber = "CSI-LAB-camera"}
 
 [tool.setuptools.package-data]
 backend = ["*.html"]
+framegrabber = ["native/*.cpp", "native/CMakeLists.txt", "camera.env.example", "csi-framegrabber.service"]

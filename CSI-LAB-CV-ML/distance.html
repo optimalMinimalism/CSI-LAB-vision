@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>[experimental] CSI-LAB · Distanze sul pavimento</title>
+<style>
+:root{font:14px "Segoe UI",Arial,sans-serif;color:#242522;background:#f2f0eb;color-scheme:light}*{box-sizing:border-box}body{margin:0}header{display:flex;gap:22px;align-items:center;padding:18px 28px;border-bottom:1px solid #d5d2c9;background:#faf9f6}a{color:#925026}header strong{margin-right:auto}main{max-width:1550px;margin:auto;padding:24px}h1{font-weight:500;margin:0 0 12px}p{line-height:1.6}.muted,small{color:#696b63}button,input{font:inherit;border:1px solid #c8c8bc;background:#fffefb;padding:9px}button{cursor:pointer}button:disabled{opacity:.45;cursor:default}button.primary{background:#30332f;color:white}label{display:block;margin:12px 0}input:not([type=checkbox]){width:100%;margin-top:5px}input[type=checkbox]{margin-right:8px}#login{max-width:420px;padding:24px;background:#faf9f6;border:1px solid #d5d2c9;margin:8vh auto}#layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr);gap:22px}article,aside{background:#faf9f6;border:1px solid #d5d2c9;padding:18px;min-width:0}.stage{min-height:200px;background:#252824;display:grid;place-items:center;overflow:hidden}canvas{display:block;width:100%;height:auto;cursor:crosshair}#placeholder{padding:50px;color:#ecece5}.actions{display:flex;flex-wrap:wrap;gap:9px;margin:14px 0}#status{min-height:24px}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px 4px;border-bottom:1px solid #d5d2c9;font-size:12px}.notice{background:#eee7d9;padding:12px;font-size:12px;line-height:1.6}fieldset{margin:18px 0;border:1px solid #d5d2c9}legend{font-weight:600}#classes{display:grid;grid-template-columns:1fr 1fr;font-size:12px}#classes label{margin:6px 0}[hidden]{display:none!important}@media(max-width:850px){#layout{grid-template-columns:1fr}main{padding:15px}header{padding:15px}}
+</style>
+</head>
+<body>
+<header><strong>CSI—LAB / DISTANZE [experimental]</strong><a href="/">Video e registrazioni</a><button id="logout" hidden>Esci</button></header>
+<main>
+<h1>Distanze tra persone e oggetti sul pavimento [experimental]</h1>
+<p class="muted">Camera fissa · piedi visibili · oggetti appoggiati sullo stesso piano</p>
+<form id="login"><h2>Distanze [experimental]</h2><label>Token del servizio<input id="token" type="password" required autocomplete="current-password"></label><button class="primary">Accedi</button><p id="loginError" role="alert"></p></form>
+<div id="layout" hidden>
+<article>
+<div class="actions"><button id="start" class="primary">Avvia distanze [experimental]</button><button id="stop" disabled>Ferma modello</button><button id="mark" disabled>Calibra il pavimento</button></div>
+<p id="status" role="status" aria-live="polite">Modello fermo.</p>
+<div class="stage"><canvas id="view" hidden aria-label="Anteprima con scheletro, appoggi e distanze"></canvas><p id="placeholder">Avvia il modello per ricevere la camera.</p></div>
+<p id="frameInfo" class="muted">Nessun fotogramma</p>
+<p id="lidar" class="notice">LiDAR: in attesa. La lettura lungo il fascio è separata dalle distanze tra persone e oggetti.</p>
+<p class="notice">[experimental] Le misure sono stime fra il punto medio delle caviglie e la base stimata dell’oggetto. Non sono la distanza minima fra i corpi. Nessun valore in metri viene mostrato senza calibrazione.</p>
+</article>
+<aside>
+<h2>Misure del fotogramma</h2><p id="measureState">Pavimento non calibrato.</p>
+<table><thead><tr><th>Persona</th><th>Oggetto</th><th>Stima</th></tr></thead><tbody id="measurements"></tbody></table>
+<fieldset><legend>Calibrazione del pavimento</legend>
+<p>Posiziona un rettangolo di dimensioni misurate sul pavimento. Premi “Calibra” e seleziona i quattro angoli nell’immagine: vicino sinistra → vicino destra → lontano destra → lontano sinistra.</p>
+<p id="pointCount">0 / 4 punti</p>
+<label>Larghezza del rettangolo (m)<input id="widthM" type="number" min="0.05" max="100" step="any" placeholder="Misurata con un metro"></label>
+<label>Profondità del rettangolo (m)<input id="depthM" type="number" min="0.05" max="100" step="any" placeholder="Misurata con un metro"></label>
+<p>Seleziona solo classi di oggetti realmente appoggiate sul pavimento:</p><div id="classes"></div>
+<label><input id="floorConfirmed" type="checkbox">Confermo camera fissa, pavimento piano e oggetti selezionati appoggiati su questo pavimento.</label>
+<div class="actions"><button id="save" disabled>Salva calibrazione</button><button id="cancel" disabled>Annulla selezione</button><button id="reset">Rimuovi calibrazione</button></div>
+<small>Valida solo nella regione delimitata e per questa camera, risoluzione e inquadratura. Se sposti la camera, cambi zoom o ritaglio, ricalibra. Piedi nascosti, basi tagliate e punti fuori regione non producono misure. L’accuratezza metrica non è stata verificata sul tuo impianto.</small>
+</fieldset>
+<small>[experimental] Processo separato sul backend, priorità ridotta, massimo un fotogramma al secondo. Va in pausa durante anteprima principale, registrazione o analisi/esportazione. La sessione scade dopo cinque secondi senza rinnovo.</small>
+</aside></div></main>
+<script>
+'use strict';
+const $=id=>document.getElementById(id),canvas=$('view'),ctx=canvas.getContext('2d');
+const names={'chair':'Sedia','couch':'Divano','bench':'Panchina','bed':'Letto','dining table':'Tavolo','refrigerator':'Frigorifero','suitcase':'Valigia','potted plant':'Pianta in vaso'};
+for(const [value,label] of Object.entries(names)){const row=document.createElement('label'),input=document.createElement('input');input.type='checkbox';input.value=value;input.checked=['chair','couch','dining table'].includes(value);row.append(input,document.createTextNode(label));$('classes').append(row)}
+let token='',running=false,polling=false,marking=false,points=[],metadata=null,frozen=null,timer=null,lastLease=0,generation=0;
+async function api(path,method='GET',body){const r=await fetch('/api/experimental/distance'+path,{method,headers:{Authorization:'Bearer '+token,'X-Timestamp-Format':'string',...(body!==undefined?{'Content-Type':'application/json'}:{})},body:body===undefined?undefined:JSON.stringify(body),cache:'no-store'});if(!r.ok){let detail;try{detail=await r.json()}catch{}throw Error(detail?.error||'Errore HTTP '+r.status)}return r}
+function status(text){$('status').textContent=text}
+function unavailable(){canvas.hidden=true;$('placeholder').hidden=false;$('placeholder').textContent='Nessun risultato corrente.';$('mark').disabled=true;metadata=null;$('measurements').replaceChildren();$('frameInfo').textContent='Nessun risultato corrente';$('lidar').textContent='LiDAR: nessuna lettura corrente in questa schermata.'}
+function draw(){if(!frozen)return;ctx.drawImage(frozen,0,0);if(points.length){ctx.beginPath();points.forEach((p,i)=>{if(i)ctx.lineTo(...p);else ctx.moveTo(...p)});if(points.length===4)ctx.closePath();ctx.strokeStyle='#ffcb66';ctx.lineWidth=2;ctx.stroke();points.forEach((p,i)=>{ctx.fillStyle='#ffcb66';ctx.beginPath();ctx.arc(...p,5,0,Math.PI*2);ctx.fill();ctx.fillText(String(i+1),p[0]+9,p[1]-9)})}}
+function rows(data){$('measurements').replaceChildren();for(const pair of data.distances||[]){const tr=document.createElement('tr');for(const text of ['#'+(pair.person_index+1),'#'+(pair.object_index+1)+' '+(names[pair.label]||pair.label),'≈ '+pair.distance_m.toFixed(2)+' m']){const td=document.createElement('td');td.textContent=text;tr.append(td)}$('measurements').append(tr)}const states={uncalibrated:'Calibra il pavimento per abilitare i metri.',calibration_mismatch:'Camera o risoluzione cambiata: ricalibra.',ready:data.distances?.length?'Stime tra appoggi sul pavimento.':'Nessuna coppia con appoggi visibili nella regione calibrata.'};$('measureState').textContent=states[data.state]||'In attesa'}
+async function poll(){if(!running||polling||document.hidden)return;polling=true;const current=generation;try{if(Date.now()-lastLease>1500){await api('','POST',{enabled:true});lastLease=Date.now()}if(marking)return;const r=await api('/preview');if(current!==generation)return;if(r.status===204){const state=await(await api('')).json();status(state.error||({loading:'Caricamento dei modelli…',waiting:'In attesa della camera…',paused:'In pausa: precedenza a '+({main_preview:'anteprima principale',recording:'registrazione',analysis_or_export:'analisi o esportazione'}[state.paused_by]||'funzioni principali'),disabled:'Sessione scaduta: riavvia il modello.'}[state.status]||'In attesa…'));unavailable();return}const meta=JSON.parse(r.headers.get('X-Frame-Metadata')),blob=await r.blob(),image=await createImageBitmap(blob);if(current!==generation||marking){image.close();return}if(frozen)frozen.close();frozen=image;metadata=meta;canvas.width=image.width;canvas.height=image.height;draw();canvas.hidden=false;$('placeholder').hidden=true;$('mark').disabled=false;rows(meta.floor_distances);status('Modello attivo · '+meta.inference_ms.toFixed(0)+' ms per fotogramma');$('frameInfo').textContent='Frame '+meta.frame_id+' · '+meta.width+' × '+meta.height+' · '+new Date(Number(BigInt(meta.timestamp_ns)/1000000n)).toLocaleTimeString();const lidar=meta.rangefinder;$('lidar').textContent='LiDAR lungo il fascio: '+(lidar?.state==='available'&&Number.isFinite(lidar.distance_m)?lidar.distance_m.toFixed(2)+' m':lidar?.state||'non configurato')+' · non usato per attribuire distanze agli oggetti.'}catch(e){status(e.message);unavailable()}finally{polling=false}}
+function endMark(){marking=false;points=[];$('pointCount').textContent='0 / 4 punti';$('save').disabled=true;$('cancel').disabled=true;if(frozen)draw()}
+$('login').onsubmit=async event=>{event.preventDefault();token=$('token').value;try{const state=await(await api('')).json();$('token').value='';$('login').hidden=true;$('layout').hidden=false;$('logout').hidden=false;if(state.calibration){$('widthM').value=state.calibration.width_m;$('depthM').value=state.calibration.depth_m;for(const input of $('classes').querySelectorAll('input'))input.checked=state.calibration.floor_labels.includes(input.value);$('measureState').textContent='Calibrazione salvata. Avvia il modello per verificarla.'}}catch(e){$('loginError').textContent=e.message;token=''}};
+$('start').onclick=async()=>{try{await api('','POST',{enabled:true});running=true;lastLease=Date.now();$('start').disabled=true;$('stop').disabled=false;timer=setInterval(poll,200);poll()}catch(e){status(e.message)}};
+async function halt(){generation++;running=false;clearInterval(timer);endMark();$('start').disabled=false;$('stop').disabled=true;$('mark').disabled=true;unavailable();status('Modello fermo.');try{await api('','POST',{enabled:false})}catch(e){status(e.message)}}
+$('stop').onclick=halt;
+$('logout').onclick=async()=>{await halt();token='';metadata=null;if(frozen){frozen.close();frozen=null}ctx.clearRect(0,0,canvas.width,canvas.height);canvas.hidden=true;$('placeholder').hidden=false;$('login').hidden=false;$('layout').hidden=true;$('logout').hidden=true};
+$('mark').onclick=()=>{if(!metadata||!frozen)return;marking=true;points=[];$('floorConfirmed').checked=false;$('cancel').disabled=false;$('pointCount').textContent='0 / 4 punti';status('Immagine ferma: seleziona i quattro angoli del rettangolo misurato.');draw()};
+canvas.onclick=event=>{if(!marking||points.length===4)return;const rect=canvas.getBoundingClientRect();points.push([(event.clientX-rect.left)*canvas.width/rect.width,(event.clientY-rect.top)*canvas.height/rect.height]);$('pointCount').textContent=points.length+' / 4 punti';$('save').disabled=points.length!==4;draw()};
+$('cancel').onclick=()=>{endMark();poll()};
+$('reset').onclick=async()=>{try{await api('/calibration','POST',{clear:true});endMark();unavailable();$('floorConfirmed').checked=false;$('measureState').textContent='Pavimento non calibrato.';status('Calibrazione rimossa.');poll()}catch(e){status(e.message)}};
+$('save').onclick=async()=>{if(points.length!==4||!metadata)return;$('save').disabled=true;try{await api('/calibration','POST',{points_px:points,width_m:Number($('widthM').value),depth_m:Number($('depthM').value),image_width:metadata.width,image_height:metadata.height,source_id:metadata.source_id,floor_labels:[...$('classes').querySelectorAll('input:checked')].map(input=>input.value),floor_confirmed:$('floorConfirmed').checked});endMark();status('Calibrazione salvata.');poll()}catch(e){status(e.message);$('save').disabled=false}};
+document.addEventListener('visibilitychange',()=>{if(document.hidden){generation++;$('measurements').replaceChildren()}else if(running){lastLease=0;poll()}});
+// Navigation sends no credentials in URLs. If the tab closes, the lease expires.
+</script></body></html>

@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=csi-video
-SupplementaryGroups=video
+SupplementaryGroups=video dialout
 WorkingDirectory=/opt/CSI-LAB-camera
 EnvironmentFile=/etc/csi-framegrabber.env
 ExecStart=/opt/CSI-LAB-camera/.venv/bin/csi-framegrabber

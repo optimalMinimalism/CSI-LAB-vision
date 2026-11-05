@@ -58,11 +58,13 @@ class PiCapture:
 
 
 class Acquisition:
-    def __init__(self, source=0, width=640, height=480, fps=10, backend="opencv", factory=None):
+    def __init__(self, source=0, width=640, height=480, fps=10, backend="opencv", factory=None,
+                 rangefinder=None):
         if not 1 <= fps <= 120 or not 1 <= width <= 4096 or not 1 <= height <= 2160:
             raise ValueError("Invalid capture dimensions/FPS")
         self.source, self.width, self.height, self.fps = source, width, height, fps
         self.backend, self.factory = backend, factory
+        self.rangefinder = rangefinder
         self.latest, self.stop = LatestFrame(), threading.Event()
         self.thread = None
 
@@ -107,10 +109,13 @@ class Acquisition:
                                 'sensor_mapping_bracket_ns': after-before, 'read_completed_timestamp_ns': wall}
                             wall = sensor_wall + sensor-(before+after)//2
                             mono -= (before+after)//2-sensor
-                    self.latest.put(Frame(image, dict(
+                    metadata = dict(
                         frame_id=sequence, timestamp_ns=wall, monotonic_ns=mono,
                         width=image.shape[1], height=image.shape[0], source_id=str(self.source),
-                        timestamp_source="picamera2-sensor-timestamp" if evidence else f"{self.backend}-read-completion", **evidence)))
+                        timestamp_source="picamera2-sensor-timestamp" if evidence else f"{self.backend}-read-completion", **evidence)
+                    if self.rangefinder is not None:
+                        metadata["rangefinder"] = self.rangefinder.snapshot(mono)
+                    self.latest.put(Frame(image, metadata))
                     sequence += 1
                 except (OSError, RuntimeError, cv2.error) as exc:
                     logging.warning("Camera reconnect: %s", exc)

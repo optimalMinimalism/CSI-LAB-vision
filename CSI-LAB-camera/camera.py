@@ -27,6 +27,7 @@ class CameraService:
         capacity=8,
         capture_uncertainty_ns=None,
         source_factory=None,
+        rangefinder=None,
     ):
         if (
             not 1 <= fps <= 120
@@ -42,6 +43,7 @@ class CameraService:
         self.width, self.height, self.fps = width, height, fps
         self.capture_uncertainty_ns = capture_uncertainty_ns
         self.factory = source_factory or cv2.VideoCapture
+        self.rangefinder = rangefinder
         self.queue = queue.Queue(capacity)
         self.preview_pending = None
         self.lock, self.stop_event = threading.RLock(), threading.Event()
@@ -135,6 +137,8 @@ class CameraService:
                                 simulated=True,
                             )
                     metadata.setdefault("source_id", str(self.device))
+                    if self.rangefinder is not None:
+                        metadata["rangefinder"] = self.rangefinder.snapshot(metadata["monotonic_ns"])
                     if active == PREVIEW:
                         if self.preview_pending is not None:
                             self.telemetry[active]["queue_dropped"] += 1

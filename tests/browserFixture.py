@@ -44,34 +44,47 @@ class PreviewModel(DeterministicModel):
         return people
 
 
-store = Store(os.environ["CSI_VIDEO_TEST_DATA"])
-service = Service(store)
-service.model = PreviewModel()
-from backend.vision import VisionPipeline
-service.enable_live(lambda: VisionPipeline(service.model))
-server = Receiver(("127.0.0.1", 0), service, os.environ["CSI_VIDEO_TOKEN"])
-camera = CameraService(
-    "http://127.0.0.1:" + str(server.server_port),
-    os.environ["CSI_VIDEO_TOKEN"],
-    source_factory=PreviewCamera,
-    capture_uncertainty_ns=1_000_000,
-)
-thread = threading.Thread(target=camera.run, daemon=True)
-thread.start()
+class DistancePreviewModel:
+    def predict(self, image):
+        return PreviewModel().predict(image), [
+            dict(label="chair", confidence=.99, bbox=[250, 90, 290, 165])]
 
 
-def stop(*_):
-    threading.Thread(target=server.shutdown, daemon=True).start()
+def main():
+    store = Store(os.environ["CSI_VIDEO_TEST_DATA"])
+    service = Service(store)
+    service.model = PreviewModel()
+    from backend.vision import VisionPipeline
+    service.enable_live(lambda: VisionPipeline(service.model))
+    if os.environ.get("CSI_VIDEO_TEST_DISTANCE") == "true":
+        service.distance().factory = DistancePreviewModel
+    server = Receiver(("127.0.0.1", 0), service, os.environ["CSI_VIDEO_TOKEN"])
+    camera = CameraService(
+        "http://127.0.0.1:" + str(server.server_port),
+        os.environ["CSI_VIDEO_TOKEN"],
+        source_factory=PreviewCamera,
+        capture_uncertainty_ns=1_000_000,
+    )
+    thread = threading.Thread(target=camera.run, daemon=True)
+    thread.start()
 
 
-for sig in (signal.SIGTERM, signal.SIGINT):
-    signal.signal(sig, stop)
-print(json.dumps(dict(port=server.server_port)), flush=True)
-try:
-    server.serve_forever(poll_interval=0.1)
-finally:
-    service.close()
-    camera.stop()
-    thread.join(4)
-    server.server_close()
-    store.close()
+    def stop(*_):
+        threading.Thread(target=server.shutdown, daemon=True).start()
+
+
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, stop)
+    print(json.dumps(dict(port=server.server_port)), flush=True)
+    try:
+        server.serve_forever(poll_interval=0.1)
+    finally:
+        service.close()
+        camera.stop()
+        thread.join(4)
+        server.server_close()
+        store.close()
+
+
+if __name__ == "__main__":
+    main()

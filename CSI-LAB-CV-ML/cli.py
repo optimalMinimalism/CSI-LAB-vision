@@ -6,6 +6,7 @@ import signal
 import threading
 
 from framegrabber.camera import CameraService
+from framegrabber.benewake import from_environment
 from .inference import Policy
 from .server import Receiver
 from .service import Service
@@ -23,7 +24,7 @@ def load_env(path):
         if (
             not sep
             or not key.replace("_", "").isalnum()
-            or not key.startswith("CSI_VIDEO_")
+            or not key.startswith(("CSI_VIDEO_", "CSI_BENEWAKE_"))
         ):
             raise ValueError("Riga .env non valida")
         os.environ.setdefault(key, value.strip().strip('"').strip("'"))
@@ -47,6 +48,7 @@ def main():
     if len(token) < 16:
         parser.error("Impostare CSI_VIDEO_TOKEN con almeno 16 caratteri")
     if args.command == "camera":
+        rangefinder = from_environment()
         device = env("DEVICE", "0")
         uncertainty = env("CAPTURE_UNCERTAINTY_MS", "")
         camera = CameraService(
@@ -58,6 +60,7 @@ def main():
             float(env("FPS", "10")),
             int(env("QUEUE", "8")),
             int(float(uncertainty) * 1e6) if uncertainty else None,
+            rangefinder=rangefinder,
         )
         if env("NATIVE_CAPTURE"):
             from framegrabber.native import NativeCapture
@@ -67,7 +70,14 @@ def main():
             )
         for sig in (signal.SIGINT, signal.SIGTERM):
             signal.signal(sig, lambda *_: camera.stop())
-        camera.run()
+        try:
+            if rangefinder is not None:
+                rangefinder.start()
+            camera.run()
+        finally:
+            camera.stop()
+            if rangefinder is not None:
+                rangefinder.close()
     else:
         policy = Policy(
             confidence=float(env("AUTO_CONFIDENCE", ".9")),

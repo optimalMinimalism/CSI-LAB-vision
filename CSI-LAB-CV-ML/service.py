@@ -22,6 +22,8 @@ class Service:
         self.preview_deadline = 0
         self.preview_frame = None
         self.live_vision = None
+        self.distance_session = None
+        self.distance_lock = threading.RLock()
         self.preview_lock = threading.Lock()
         self.clock_reference = (time.time_ns(), time.monotonic_ns())
         self.clock_unstable = False
@@ -59,7 +61,36 @@ class Service:
             item = self.store.get(active)
             if item["camera_enabled"] and item["state"] == "RECORDING":
                 return dict(experiment_id=active, server_id=self.server_id)
-        return dict(experiment_id=None, server_id=self.server_id, preview_enabled=time.monotonic() < self.preview_deadline)
+        return dict(experiment_id=None, server_id=self.server_id, preview_enabled=(
+            time.monotonic() < self.preview_deadline or self.distance_requested()))
+
+    def distance_requested(self):
+        try:
+            return bool(self.distance_session and self.distance_session.active())
+        except Exception:
+            return False  # An experimental failure must not break camera control.
+
+    def distance_blocked_by(self):
+        if self.active:
+            return "recording"
+        if self.analysis_lock.locked():
+            return "analysis_or_export"
+        if time.monotonic() < self.preview_deadline:
+            return "main_preview"
+        return None
+
+    def distance_frame(self):
+        # Experimental code only reads the published JPEG; it never owns this lock
+        # while copying/decoding data, and skips the read if the main path is busy.
+        if not self.preview_lock.acquire(blocking=False):
+            return None
+        try:
+            raw = self.preview_frame
+        finally:
+            self.preview_lock.release()
+        if not raw or time.monotonic() - raw[0] >= 2:
+            return None
+        return raw
 
     def set_preview(self, enabled):
         self.preview_deadline = time.monotonic() + 5 if enabled else 0
@@ -92,6 +123,17 @@ class Service:
             self.preview_frame = (time.monotonic(), payload, dict(metadata))
         if self.live_vision:
             self.live_vision.submit(metadata, payload, image)
+
+    def distance(self):
+        from .distance import DistanceSession
+        with self.distance_lock:
+            if self.closed:
+                raise ValueError("Service is closed")
+            if self.distance_session is None:
+                self.distance_session = DistanceSession(
+                    self.store.root, frame_provider=self.distance_frame,
+                    blocked_by=self.distance_blocked_by)
+            return self.distance_session
 
 
     def stop(self, identifier):
@@ -210,3 +252,6 @@ class Service:
             self.closed = True
         if self.live_vision:
             self.live_vision.close()
+        with self.distance_lock:
+            if self.distance_session:
+                self.distance_session.close()
